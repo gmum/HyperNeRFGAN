@@ -9,14 +9,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm, trange
 
-import matplotlib.pyplot as plt
+from nerf.run_nerf_helpers import *
 
-from run_nerf_helpers import *
-
-from load_llff import load_llff_data
-from load_deepvoxels import load_dv_data
-from load_blender import load_blender_data
-from load_LINEMOD import load_LINEMOD_data
+from nerf.load_llff import load_llff_data
+from nerf.load_deepvoxels import load_dv_data
+from nerf.load_blender import load_blender_data
+from nerf.load_LINEMOD import load_LINEMOD_data
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
