@@ -137,6 +137,51 @@ def fmm_modulate_linear(x: Tensor, weight: Tensor, styles: Tensor, noise=None, a
 
 #----------------------------------------------------------------------------
 
+
+@misc.profiled_function
+def fmm_modulate_linear_nerf(x: Tensor, weight: Tensor, styles: Tensor, activation: str="demod") -> Tensor:
+    """
+    `fmm_modulate_linear` for batch size equal to 1.
+
+    x: [num_rays, c_in]
+    weight: [c_out, c_in]
+    style: [num_mod_params]
+    """
+    num_rays, c_in = x.shape
+    c_out, c_in = weight.shape
+    rank = styles.shape[0] // (c_in + c_out)
+
+    assert styles.shape[0] % (c_in + c_out) == 0
+    assert len(styles.shape) == 1
+
+    # Now, we need to construct a [c_out, c_in] matrix
+    left_matrix = styles[:c_out * rank]  # [left_matrix_size]
+    right_matrix = styles[c_out * rank:]  # [right_matrix_size]
+
+    left_matrix = left_matrix.view(c_out, rank)  # [c_out, rank]
+    right_matrix = right_matrix.view(rank, c_in)  # [c_out, rank]
+
+    # Imagine, that the output of `self.affine` (in SynthesisLayer) is N(0, 1)
+    # Then, std of weights is sqrt(rank). Converting it back to N(0, 1)
+    modulation = left_matrix @ right_matrix / np.sqrt(rank)  # [c_out, c_in]
+
+    if activation == "tanh":
+        modulation = modulation.tanh()
+    elif activation == "sigmoid":
+        modulation = modulation.sigmoid() - 0.5
+
+    W = weight * (modulation + 1.0)  # [c_out, c_in]
+    if activation == "demod":
+        W = W / (W.norm(dim=1, keepdim=True) + 1e-8)  # [c_out, c_in]
+    W = W.to(dtype=x.dtype)
+
+    x = x.view(num_rays, c_in, 1)
+    out = torch.matmul(W, x) # [num_rays, c_out, 1]
+    out = out.view(num_rays, c_out) # [num_rays, c_out]
+
+    return out
+#----------------------------------------------------------------------------
+
 @misc.profiled_function
 def maybe_upsample(x, upsampling_mode: str=None, up: int=1) -> Tensor:
     if up == 1 or upsampling_mode is None:
