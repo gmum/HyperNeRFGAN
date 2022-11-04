@@ -398,6 +398,50 @@ class SynthesisLayer(torch.nn.Module):
 #----------------------------------------------------------------------------
 
 @persistence.persistent_class
+class NerfSynthesisLayer(torch.nn.Module):
+    def __init__(self,
+        in_channels,                    # Number of input channels.
+        out_channels,                   # Number of output channels.
+        w_dim,                          # Intermediate latent (W) dimensionality.
+        activation      = 'lrelu',      # Activation function: 'relu', 'lrelu', etc.
+        # conv_clamp      = None,         # Clamp the output of convolution layers to +-X, None = disable clamping.
+        channels_last   = False,        # Use channels_last format for the weights?
+        # instance_norm   = False,        # Use instance norm?
+        cfg             = {},           # Additional config
+    ):
+        super().__init__()
+
+        self.cfg = OmegaConf.create(cfg)
+        self.activation = activation
+        # self.conv_clamp = conv_clamp
+        # self.act_gain = bias_act.activation_funcs[activation].def_gain
+
+        self.w_dim = w_dim
+        self.affine = FullyConnectedLayer(self.w_dim, (in_channels + out_channels) * self.cfg.fmm.rank, bias_init=0)
+
+        memory_format = torch.channels_last if channels_last else torch.contiguous_format
+        self.weight = torch.nn.Parameter(torch.randn([out_channels, in_channels]).to(memory_format=memory_format))
+        self.bias = torch.nn.Parameter(torch.zeros([out_channels]))
+        # self.instance_norm = instance_norm
+
+    def forward(self, x, w):
+        misc.assert_shape(x, [None, self.weight.shape[1]])
+        misc.assert_shape(w, [1, self.w_dim])
+        styles = self.affine(w).squeeze(0)
+
+        # if self.instance_norm:
+        #     x = x / (x.std(dim=[2,3], keepdim=True) + 1e-8) # [batch_size, c, h, w]
+
+        x = fmm_modulate_linear_nerf(x=x, weight=self.weight, styles=styles, activation=self.cfg.fmm.activation)
+
+        # act_gain = self.act_gain * gain
+        # act_clamp = self.conv_clamp * gain if self.conv_clamp is not None else None
+        x = bias_act.bias_act(x, self.bias.to(x.dtype), act=self.activation) #, gain=act_gain, clamp=act_clamp)
+        return x
+
+#----------------------------------------------------------------------------
+
+@persistence.persistent_class
 class ToRGBLayer(torch.nn.Module):
     def __init__(self, in_channels, out_channels, w_dim, kernel_size=1, conv_clamp=None, channels_last=False):
         super().__init__()
