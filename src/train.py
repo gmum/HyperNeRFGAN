@@ -179,7 +179,7 @@ def setup_training_loop_kwargs(
         spec.r1_gamma = 0.0002 * (res ** 2) / spec.mb # heuristic formula
         spec.ema = spec.mb * 10 / 32
 
-    args.G_kwargs = dnnlib.EasyDict(class_name='training.networks.Generator', z_dim=512, w_dim=512, mapping_kwargs=dnnlib.EasyDict(), synthesis_kwargs=dnnlib.EasyDict())
+    args.G_kwargs = dnnlib.EasyDict(class_name='training.networks.NeRFGenerator', z_dim=512, w_dim=512, mapping_kwargs=dnnlib.EasyDict(), synthesis_kwargs=dnnlib.EasyDict())
     args.D_kwargs = dnnlib.EasyDict(class_name='training.networks.Discriminator', block_kwargs=dnnlib.EasyDict(), mapping_kwargs=dnnlib.EasyDict(), epilogue_kwargs=dnnlib.EasyDict())
     args.G_kwargs.synthesis_kwargs.channel_base = int(hydra_cfg.generator.get('fmaps', spec.fmaps) * 32768)
     args.D_kwargs.channel_base = int(hydra_cfg.get('discriminator', {}).get('fmaps', spec.fmaps) * 32768)

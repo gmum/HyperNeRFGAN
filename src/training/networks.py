@@ -17,6 +17,7 @@ import torch.nn.functional as F
 
 from nerf.run_nerf import render, run_network
 from nerf.run_nerf_helpers import get_embedder
+from nerf.load_blender import pose_spherical
 from torch_utils import misc
 from torch_utils import persistence
 from torch_utils.ops import conv2d_resample
@@ -408,7 +409,6 @@ class NerfSynthesisLayer(torch.nn.Module):
         out_channels,                   # Number of output channels.
         w_dim,                          # Intermediate latent (W) dimensionality.
         activation      = 'lrelu',      # Activation function: 'relu', 'lrelu', etc.
-        # conv_clamp      = None,         # Clamp the output of convolution layers to +-X, None = disable clamping.
         channels_last   = False,        # Use channels_last format for the weights?
         # instance_norm   = False,        # Use instance norm?
         cfg             = {},           # Additional config
@@ -417,8 +417,6 @@ class NerfSynthesisLayer(torch.nn.Module):
 
         self.cfg = OmegaConf.create(cfg)
         self.activation = activation
-        # self.conv_clamp = conv_clamp
-        # self.act_gain = bias_act.activation_funcs[activation].def_gain
 
         self.w_dim = w_dim
         self.affine = FullyConnectedLayer(self.w_dim, (in_channels + out_channels) * self.cfg.fmm.rank, bias_init=0)
@@ -438,9 +436,7 @@ class NerfSynthesisLayer(torch.nn.Module):
 
         x = fmm_modulate_linear_nerf(x=x, weight=self.weight, styles=styles, activation=self.cfg.fmm.activation)
 
-        # act_gain = self.act_gain * gain
-        # act_clamp = self.conv_clamp * gain if self.conv_clamp is not None else None
-        x = bias_act.bias_act(x, self.bias.to(x.dtype), act=self.activation) #, gain=act_gain, clamp=act_clamp)
+        x = bias_act.bias_act(x, self.bias.to(x.dtype), act=self.activation)
         return x
 
 #----------------------------------------------------------------------------
@@ -696,8 +692,6 @@ class NerfSynthesisNetwork(torch.nn.Module):
         self.W = 256
         self.height = 128
         self.width = 128
-        self.chunk = 1024*1
-        self.netchunk = 1024*64
 
         embed_fn, input_ch = get_embedder(multires = 10, i = 0)
         self.embed_fn = embed_fn
@@ -725,7 +719,7 @@ class NerfSynthesisNetwork(torch.nn.Module):
                                activation='relu',
                                cfg=cfg)
             for i in range(self.D - 1)])
-        self.num_ws = len(self.pts_linears)
+        self.num_ws = len(self.pts_linears) + 1
 
         if self.use_viewdirs:
             ### Implementation according to the official code release (https://github.com/bmild/nerf/blob/master/run_nerf_helpers.py#L104-L105)
@@ -739,64 +733,53 @@ class NerfSynthesisNetwork(torch.nn.Module):
             self.alpha_linear = nn.Linear(W, 1)
             self.rgb_linear = nn.Linear(W // 2, 3)
         else:
-            self.output_linear = nn.Linear(W, 4) # self.img_channels
+            self.output_linear = NerfSynthesisLayer(in_channels=W,
+                                                    out_channels=4,
+                                                    w_dim=self.w_dim,
+                                                    activation='linear',
+                                                    cfg=cfg)
+        self.network_query_fn = partial(run_network, embed_fn=self.embed_fn, embeddirs_fn=None)
 
-        self.network_query_fn = partial(run_network, embed_fn=self.embed_fn, embeddirs_fn=None, netchunk=self.netchunk)
-
-    def forward(self, ws, **block_kwargs):
-        # todo: following values are placeholders and should be randomised
-        camera_angle_x = 0.6911112070083618
-        focal = .5 * self.width / np.tan(.5 * camera_angle_x)
-        K = np.array([
+        self.fov = 0.6911112070083618
+        focal = .5 * self.width / np.tan(.5 * self.fov)
+        self.K = np.array([
             [focal, 0, 0.5 * self.width],
             [0, focal, 0.5 * self.height],
             [0, 0, 1]
-        ])
-        c2w = torch.Tensor([
-            [
-                0.25881901383399963,
-                0.28039342164993286,
-                -0.9243334531784058,
-                -2.7730002403259277
-            ],
-            [
-                -0.9659258127212524,
-                0.07513119280338287,
-                -0.2476743906736374,
-                -0.743023157119751
-            ],
-            [
-                0.0,
-                0.9569402933120728,
-                0.2902846932411194,
-                0.8708540201187134
-            ],
-            [
-                0.0,
-                0.0,
-                0.0,
-                1.0
-            ]])
+        ])  # camera matrix
 
-        # todo: setup `render_kwargs` with arguments
-        render_kwargs = {
+        self.render_kwargs = {
             'network_query_fn': self.network_query_fn,
-            'perturb': 0,
+            'perturb': self.cfg.perturb,
+            'ndc': False,
             'N_importance': 0,
-            # 'network_fine': model_fine,
-            'N_samples': 16,  # original value: 64
-            'network_fn': self.forward_rays,
+            'N_samples': 16,
             'use_viewdirs': False,
             'white_bkgd': True,
             'raw_noise_std': 0,
         }
+
+    def forward(self, ws, **block_kwargs):
+        theta = np.random.uniform(low=-180, high=180)
+        c2w = pose_spherical(theta=theta, phi=-30.0, radius=4.0)
+
         imgs = []
         for i in range(ws.shape[0]):
             self.current_w = ws.narrow(dim=0, start=i, length=1).squeeze()  # value used in `forward_rays`
-            rgb, _, _, _ = render(self.height, self.width, K, chunk=self.chunk, c2w=c2w[:3, :4], **render_kwargs)
+            rgb, _, _, _ = render(self.height,
+                                  self.width,
+                                  self.K,
+                                  near=2.0,
+                                  far=6.0,
+                                  c2w=c2w[:3, :4],
+                                  network_fn=self.forward_rays,
+                                  **self.render_kwargs)
 
             imgs.append(rgb)
-        return torch.stack(imgs).permute((0, 3, 1, 2))
+
+        imgs = torch.stack(imgs).permute((0, 3, 1, 2))
+        imgs = (imgs - 0.5) * 2  # Rescale to [-1, 1]
+        return imgs
 
     def forward_rays(self, x, **block_kwargs):
         input_pts, input_views = torch.split(x, [self.input_ch, self.input_ch_views], dim=-1)
@@ -820,7 +803,8 @@ class NerfSynthesisNetwork(torch.nn.Module):
             rgb = self.rgb_linear(h)
             outputs = torch.cat([rgb, alpha], -1)
         else:
-            outputs = self.output_linear(h)
+            w = self.current_w.narrow(dim=0, start=len(self.pts_linears), length=1)
+            outputs = self.output_linear(h, w)
 
         return outputs
 
@@ -852,6 +836,37 @@ class Generator(torch.nn.Module):
         ws = self.mapping(z, c, truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff)
         img = self.synthesis(ws, **synthesis_kwargs)
         return img
+
+
+#----------------------------------------------------------------------------
+
+@persistence.persistent_class
+class NeRFGenerator(torch.nn.Module):
+    def __init__(self,
+        z_dim,                      # Input latent (Z) dimensionality.
+        c_dim,                      # Conditioning label (C) dimensionality.
+        w_dim,                      # Intermediate latent (W) dimensionality.
+        img_resolution,             # Output resolution.
+        img_channels,               # Number of output color channels.
+        mapping_kwargs      = {},   # Arguments for MappingNetwork.
+        synthesis_kwargs    = {},   # Arguments for SynthesisNetwork.
+        cfg                 = {},   # Config
+    ):
+        super().__init__()
+        self.z_dim = z_dim
+        self.c_dim = c_dim
+        self.w_dim = w_dim
+        self.img_resolution = img_resolution
+        self.img_channels = img_channels
+        self.synthesis = NerfSynthesisNetwork(w_dim=w_dim, img_resolution=img_resolution, img_channels=img_channels, cfg=cfg, **synthesis_kwargs)
+        self.num_ws = self.synthesis.num_ws
+        self.mapping = MappingNetwork(z_dim=z_dim, c_dim=c_dim, w_dim=w_dim, num_ws=self.num_ws, w_avg_beta=None, **mapping_kwargs) # todo: w_avg_beta shouldn't be here but it's absence breaks code something
+
+    def forward(self, z, c, truncation_psi=1, truncation_cutoff=None, **synthesis_kwargs):
+        ws = self.mapping(z, c, truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff)
+        img = self.synthesis(ws, **synthesis_kwargs)
+        return img
+
 
 #----------------------------------------------------------------------------
 
