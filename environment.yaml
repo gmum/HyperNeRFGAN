@@ -8,6 +8,8 @@ dependencies:
   - cudatoolkit=10.2
   - pytorch=1.7.1
   - torchvision=0.8.2
+  - imageio
+  - protobuf=3.20.1
   - pip:
     - hydra-core==1.0.6
     - click==7.1.2
@@ -17,4 +19,5 @@ dependencies:
     - tqdm==4.59.0
     - gitpython
     - gpustat
+    - opencv-python
     - -e .
