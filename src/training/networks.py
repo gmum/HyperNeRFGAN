@@ -6,6 +6,8 @@
 # distribution of this software and related documentation without an express
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
 
+from functools import partial
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -13,6 +15,8 @@ from torch import Tensor
 from omegaconf import OmegaConf
 import torch.nn.functional as F
 
+from nerf.run_nerf import render, run_network
+from nerf.run_nerf_helpers import get_embedder
 from torch_utils import misc
 from torch_utils import persistence
 from torch_utils.ops import conv2d_resample
@@ -664,6 +668,161 @@ class SynthesisNetwork(torch.nn.Module):
             block = getattr(self, f'b{res}')
             x, img = block(x, img, cur_ws, **block_kwargs)
         return img
+
+#----------------------------------------------------------------------------
+
+@persistence.persistent_class
+class NerfSynthesisNetwork(torch.nn.Module):
+    def __init__(self,
+        w_dim,                      # Intermediate latent (W) dimensionality.
+        img_resolution,             # Output image resolution.
+        img_channels,               # Number of color channels.
+        channel_base    = 32768,    # Overall multiplier for the number of channels.
+        channel_max     = 512,      # Maximum number of channels in any layer.
+        num_fp16_res    = 0,        # Use FP16 for the N highest resolutions.
+        cfg             = {},       # Additional config
+        **block_kwargs,             # Arguments for SynthesisBlock.
+    ):
+        assert img_resolution >= 4 and img_resolution & (img_resolution - 1) == 0
+        super().__init__()
+
+        self.cfg = OmegaConf.create(cfg)
+        # self.img_resolution = img_resolution
+        # self.img_resolution_log2 = int(np.log2(img_resolution))
+        # self.img_channels = img_channels
+
+        self.w_dim = w_dim
+        self.D = 8
+        self.W = 256
+        self.height = 128
+        self.width = 128
+        self.chunk = 1024*1
+        self.netchunk = 1024*64
+
+        embed_fn, input_ch = get_embedder(multires = 10, i = 0)
+        self.embed_fn = embed_fn
+        self.input_ch = input_ch
+        self.input_ch_views = 0
+        self.skips = [4]
+        self.use_viewdirs = False
+
+        W = self.W
+        self.pts_linears = nn.ModuleList(
+            [NerfSynthesisLayer(in_channels=self.input_ch,
+                                out_channels=W,
+                                w_dim=self.w_dim,
+                                activation='relu',
+                                cfg=cfg)] + [
+            NerfSynthesisLayer(in_channels=W,
+                               out_channels=W,
+                               w_dim=self.w_dim,
+                               activation='relu',
+                               cfg=cfg)
+            if i not in self.skips else
+            NerfSynthesisLayer(in_channels=W + self.input_ch,
+                               out_channels=W,
+                               w_dim=self.w_dim,
+                               activation='relu',
+                               cfg=cfg)
+            for i in range(self.D - 1)])
+        self.num_ws = len(self.pts_linears)
+
+        if self.use_viewdirs:
+            ### Implementation according to the official code release (https://github.com/bmild/nerf/blob/master/run_nerf_helpers.py#L104-L105)
+            self.views_linears = nn.ModuleList([nn.Linear(self.input_ch_views + W, W // 2)])
+
+            ### Implementation according to the paper
+            # self.views_linears = nn.ModuleList(
+            #     [nn.Linear(input_ch_views + W, W//2)] + [nn.Linear(W//2, W//2) for i in range(D//2)])
+
+            self.feature_linear = nn.Linear(W, W)
+            self.alpha_linear = nn.Linear(W, 1)
+            self.rgb_linear = nn.Linear(W // 2, 3)
+        else:
+            self.output_linear = nn.Linear(W, 4) # self.img_channels
+
+        self.network_query_fn = partial(run_network, embed_fn=self.embed_fn, embeddirs_fn=None, netchunk=self.netchunk)
+
+    def forward(self, ws, **block_kwargs):
+        # todo: following values are placeholders and should be randomised
+        camera_angle_x = 0.6911112070083618
+        focal = .5 * self.width / np.tan(.5 * camera_angle_x)
+        K = np.array([
+            [focal, 0, 0.5 * self.width],
+            [0, focal, 0.5 * self.height],
+            [0, 0, 1]
+        ])
+        c2w = torch.Tensor([
+            [
+                0.25881901383399963,
+                0.28039342164993286,
+                -0.9243334531784058,
+                -2.7730002403259277
+            ],
+            [
+                -0.9659258127212524,
+                0.07513119280338287,
+                -0.2476743906736374,
+                -0.743023157119751
+            ],
+            [
+                0.0,
+                0.9569402933120728,
+                0.2902846932411194,
+                0.8708540201187134
+            ],
+            [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+            ]])
+
+        # todo: setup `render_kwargs` with arguments
+        render_kwargs = {
+            'network_query_fn': self.network_query_fn,
+            'perturb': 0,
+            'N_importance': 0,
+            # 'network_fine': model_fine,
+            'N_samples': 16,  # original value: 64
+            'network_fn': self.forward_rays,
+            'use_viewdirs': False,
+            'white_bkgd': True,
+            'raw_noise_std': 0,
+        }
+        imgs = []
+        for i in range(ws.shape[0]):
+            self.current_w = ws.narrow(dim=0, start=i, length=1).squeeze()  # value used in `forward_rays`
+            rgb, _, _, _ = render(self.height, self.width, K, chunk=self.chunk, c2w=c2w[:3, :4], **render_kwargs)
+
+            imgs.append(rgb)
+        return torch.stack(imgs).permute((0, 3, 1, 2))
+
+    def forward_rays(self, x, **block_kwargs):
+        input_pts, input_views = torch.split(x, [self.input_ch, self.input_ch_views], dim=-1)
+        input_pts = input_pts.to(device=self.current_w.device)
+        h = input_pts
+        for i, l in enumerate(self.pts_linears):
+            w = self.current_w.narrow(dim=0, start=i, length=1)
+            h = self.pts_linears[i](h, w)
+
+            if i in self.skips:
+                h = torch.cat([input_pts, h], -1)
+
+        if self.use_viewdirs:
+            alpha = self.alpha_linear(h)
+            feature = self.feature_linear(h)
+            h = torch.cat([feature, input_views], -1)
+
+            for i, l in enumerate(self.views_linears):
+                h = self.views_linears[i](h)
+
+            rgb = self.rgb_linear(h)
+            outputs = torch.cat([rgb, alpha], -1)
+        else:
+            outputs = self.output_linear(h)
+
+        return outputs
 
 #----------------------------------------------------------------------------
 
