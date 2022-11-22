@@ -27,13 +27,13 @@ train_args:
   outdir: ${project_release_dir}
   data: ${dataset.target_path}
   gpus: ${num_gpus}
-  cfg: auto
+  cfg: nerf
   snap: 100
 
   # Let's by default have only x flips
   aug: noaug
   mirror: 1
-  hydra_cfg_name: "inr-gan.yml"
+  hydra_cfg_name: "nerf-gan.yml"
 
 train_args_str:
   _target_: src.infra.utils.cfg_to_args_str

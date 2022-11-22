@@ -45,7 +45,7 @@ def setup_training_loop_kwargs(
     mirror     = None, # Augment dataset with x-flips: <bool>, default = False
 
     # Base config.
-    cfg        = None, # Base config: 'auto' (default), 'stylegan2', 'paper256', 'paper512', 'paper1024', 'cifar'
+    cfg        = None, # Base config: 'auto' (default), 'nerf', 'stylegan2', 'paper256', 'paper512', 'paper1024', 'cifar'
     kimg       = None, # Override training duration: <int>
     batch      = None, # Override batch size: <int>
 
@@ -159,6 +159,7 @@ def setup_training_loop_kwargs(
 
     cfg_specs = {
         'auto':      dict(ref_gpus=-1, kimg=25000,  mb=-1, mbstd=-1, fmaps=-1,  lrate=-1,     r1_gamma=-1,   ema=-1,  ramp=0.05, map=2), # Populated dynamically based on resolution and GPU count.
+        'nerf':    dict(ref_gpus=gpus, kimg=25000,  mb=64, mbstd=4,  fmaps=1,   lrate=0.0025, r1_gamma=0.001,    ema=20,  ramp=0.05, map=2, width=128, num_layers=4),
         'stylegan2': dict(ref_gpus=8,  kimg=25000,  mb=32, mbstd=4,  fmaps=1,   lrate=0.002,  r1_gamma=10,   ema=10,  ramp=None, map=8), # Uses mixed-precision, unlike the original StyleGAN2.
         'paper256':  dict(ref_gpus=8,  kimg=25000,  mb=64, mbstd=8,  fmaps=0.5, lrate=0.0025, r1_gamma=1,    ema=20,  ramp=None, map=8),
         'paper512':  dict(ref_gpus=8,  kimg=25000,  mb=64, mbstd=8,  fmaps=1,   lrate=0.0025, r1_gamma=0.5,  ema=20,  ramp=None, map=8),
@@ -179,18 +180,28 @@ def setup_training_loop_kwargs(
         spec.r1_gamma = 0.0002 * (res ** 2) / spec.mb # heuristic formula
         spec.ema = spec.mb * 10 / 32
 
-    args.G_kwargs = dnnlib.EasyDict(class_name='training.networks.NeRFGenerator', z_dim=512, w_dim=512, mapping_kwargs=dnnlib.EasyDict(), synthesis_kwargs=dnnlib.EasyDict())
+    if cfg == 'nerf':
+        args.G_kwargs = dnnlib.EasyDict(class_name='training.networks.NeRFGenerator', z_dim=128, w_dim=128, mapping_kwargs=dnnlib.EasyDict(), synthesis_kwargs=dnnlib.EasyDict())
+        args.G_kwargs.synthesis_kwargs.width = int(hydra_cfg.generator.get('width', spec.width))
+        args.G_kwargs.synthesis_kwargs.num_layers = hydra_cfg.generator.get('num_layers', spec.num_layers)
+        args.G_kwargs.synthesis_kwargs.peturb = hydra_cfg.generator.get('perturb', spec.perturb)
+    else:
+        args.G_kwargs = dnnlib.EasyDict(class_name='training.networks.Generator', z_dim=512, w_dim=512,
+                                        mapping_kwargs=dnnlib.EasyDict(), synthesis_kwargs=dnnlib.EasyDict())
+
+        args.G_kwargs.synthesis_kwargs.channel_base = int(hydra_cfg.generator.get('fmaps', spec.fmaps) * 32768)
+        args.G_kwargs.synthesis_kwargs.num_fp16_res = 4  # enable mixed-precision training
+        args.G_kwargs.synthesis_kwargs.channel_max = args.D_kwargs.channel_max = 512
+        args.G_kwargs.synthesis_kwargs.conv_clamp = 256  # clamp activations to avoid float16 overflow
     args.D_kwargs = dnnlib.EasyDict(class_name='training.networks.Discriminator', block_kwargs=dnnlib.EasyDict(), mapping_kwargs=dnnlib.EasyDict(), epilogue_kwargs=dnnlib.EasyDict())
-    args.G_kwargs.synthesis_kwargs.channel_base = int(hydra_cfg.generator.get('fmaps', spec.fmaps) * 32768)
     args.D_kwargs.channel_base = int(hydra_cfg.get('discriminator', {}).get('fmaps', spec.fmaps) * 32768)
-    args.G_kwargs.synthesis_kwargs.channel_max = args.D_kwargs.channel_max = 512
     args.G_kwargs.mapping_kwargs.num_layers = hydra_cfg.generator.get('mapping_net_n_layers', spec.map)
-    args.G_kwargs.synthesis_kwargs.num_fp16_res = args.D_kwargs.num_fp16_res = 4 # enable mixed-precision training
-    args.G_kwargs.synthesis_kwargs.conv_clamp = args.D_kwargs.conv_clamp = 256 # clamp activations to avoid float16 overflow
+    args.D_kwargs.num_fp16_res = 4  # enable mixed-precision training
+    args.D_kwargs.conv_clamp = 256  # clamp activations to avoid float16 overflow
     args.G_kwargs.cfg = OmegaConf.to_container(hydra_cfg.generator)
     args.D_kwargs.epilogue_kwargs.mbstd_group_size = spec.mbstd
 
-    if hydra_cfg.generator.get('fp32'):
+    if cfg != 'nerf' and hydra_cfg.generator.get('fp32'):
         args.G_kwargs.synthesis_kwargs.num_fp16_res = 0
         args.G_kwargs.synthesis_kwargs.conv_clamp = None
 
@@ -351,7 +362,7 @@ def setup_training_loop_kwargs(
     if fp32 is None:
         fp32 = False
     assert isinstance(fp32, bool)
-    if fp32:
+    if fp32 and 'cfg' != 'nerf':
         args.G_kwargs.synthesis_kwargs.num_fp16_res = args.D_kwargs.num_fp16_res = 0
         args.G_kwargs.synthesis_kwargs.conv_clamp = args.D_kwargs.conv_clamp = None
 
@@ -436,7 +447,7 @@ class CommaSeparatedList(click.ParamType):
 @click.option('--mirror', help='Enable dataset x-flips [default: false]', type=bool, metavar='BOOL')
 
 # Base config.
-@click.option('--cfg', help='Base config [default: auto]', type=click.Choice(['auto', 'stylegan2', 'paper256', 'paper512', 'paper1024', 'cifar']))
+@click.option('--cfg', help='Base config [default: auto]', type=click.Choice(['auto', 'nerf', 'stylegan2', 'paper256', 'paper512', 'paper1024', 'cifar']))
 @click.option('--kimg', help='Override training duration', type=int, metavar='INT')
 @click.option('--batch', help='Override batch size', type=int, metavar='INT')
 
