@@ -1,0 +1,17 @@
+generator:
+  width: 128
+  num_layers: 4
+
+  fmm:
+    enabled: true
+    rank: 10
+    activation: demod
+
+loss_kwargs:
+  r1_gamma: 10.0
+  pl_weight: 0
+  style_mixing_prob: 0.0
+
+discriminator:
+  fmaps: 1
+

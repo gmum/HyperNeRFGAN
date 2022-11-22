@@ -672,10 +672,6 @@ class NerfSynthesisNetwork(torch.nn.Module):
     def __init__(self,
         w_dim,                      # Intermediate latent (W) dimensionality.
         img_resolution,             # Output image resolution.
-        img_channels,               # Number of color channels.
-        channel_base    = 32768,    # Overall multiplier for the number of channels.
-        channel_max     = 512,      # Maximum number of channels in any layer.
-        num_fp16_res    = 0,        # Use FP16 for the N highest resolutions.
         cfg             = {},       # Additional config
         **block_kwargs,             # Arguments for SynthesisBlock.
     ):
@@ -683,17 +679,15 @@ class NerfSynthesisNetwork(torch.nn.Module):
         super().__init__()
 
         self.cfg = OmegaConf.create(cfg)
-        # self.img_resolution = img_resolution
-        # self.img_resolution_log2 = int(np.log2(img_resolution))
-        # self.img_channels = img_channels
+        self.img_resolution = img_resolution
 
         self.w_dim = w_dim
-        self.D = 8
-        self.W = 256
-        self.height = 128
-        self.width = 128
+        self.D = self.cfg.num_layers
+        self.W = self.cfg.width
+        self.height = img_resolution
+        self.width = img_resolution
 
-        embed_fn, input_ch = get_embedder(multires = 10, i = 0)
+        embed_fn, input_ch = get_embedder(multires=10, i=0)
         self.embed_fn = embed_fn
         self.input_ch = input_ch
         self.input_ch_views = 0
@@ -703,25 +697,25 @@ class NerfSynthesisNetwork(torch.nn.Module):
         W = self.W
         self.pts_linears = nn.ModuleList(
             [NerfSynthesisLayer(in_channels=self.input_ch,
-                                out_channels=W,
+                                out_channels=self.width,
                                 w_dim=self.w_dim,
                                 activation='relu',
                                 cfg=cfg)] + [
-            NerfSynthesisLayer(in_channels=W,
-                               out_channels=W,
+            NerfSynthesisLayer(in_channels=self.width,
+                               out_channels=self.width,
                                w_dim=self.w_dim,
                                activation='relu',
                                cfg=cfg)
             if i not in self.skips else
-            NerfSynthesisLayer(in_channels=W + self.input_ch,
-                               out_channels=W,
+            NerfSynthesisLayer(in_channels=self.width + self.input_ch,
+                               out_channels=self.width,
                                w_dim=self.w_dim,
                                activation='relu',
                                cfg=cfg)
             for i in range(self.D - 1)])
-        self.num_ws = len(self.pts_linears) + 1
 
         if self.use_viewdirs:
+            raise NotImplementedError("Viewing directions are not supported")
             ### Implementation according to the official code release (https://github.com/bmild/nerf/blob/master/run_nerf_helpers.py#L104-L105)
             self.views_linears = nn.ModuleList([nn.Linear(self.input_ch_views + W, W // 2)])
 
@@ -729,11 +723,11 @@ class NerfSynthesisNetwork(torch.nn.Module):
             # self.views_linears = nn.ModuleList(
             #     [nn.Linear(input_ch_views + W, W//2)] + [nn.Linear(W//2, W//2) for i in range(D//2)])
 
-            self.feature_linear = nn.Linear(W, W)
-            self.alpha_linear = nn.Linear(W, 1)
-            self.rgb_linear = nn.Linear(W // 2, 3)
+            self.feature_linear = nn.Linear(self.width, self.width)
+            self.alpha_linear = nn.Linear(self.width, 1)
+            self.rgb_linear = nn.Linear(self.width // 2, 3)
         else:
-            self.output_linear = NerfSynthesisLayer(in_channels=W,
+            self.output_linear = NerfSynthesisLayer(in_channels=self.width,
                                                     out_channels=4,
                                                     w_dim=self.w_dim,
                                                     activation='linear',
@@ -765,7 +759,7 @@ class NerfSynthesisNetwork(torch.nn.Module):
 
         imgs = []
         for i in range(ws.shape[0]):
-            self.current_w = ws.narrow(dim=0, start=i, length=1).squeeze()  # value used in `forward_rays`
+            self.current_ws = ws.narrow(dim=0, start=i, length=1)  # value used in `forward_rays`
             rgb, _, _, _ = render(self.height,
                                   self.width,
                                   self.K,
@@ -783,11 +777,10 @@ class NerfSynthesisNetwork(torch.nn.Module):
 
     def forward_rays(self, x, **block_kwargs):
         input_pts, input_views = torch.split(x, [self.input_ch, self.input_ch_views], dim=-1)
-        input_pts = input_pts.to(device=self.current_w.device)
+        input_pts = input_pts.to(device=self.current_ws.device)
         h = input_pts
         for i, l in enumerate(self.pts_linears):
-            w = self.current_w.narrow(dim=0, start=i, length=1)
-            h = self.pts_linears[i](h, w)
+            h = self.pts_linears[i](h, self.current_ws)
 
             if i in self.skips:
                 h = torch.cat([input_pts, h], -1)
@@ -803,8 +796,7 @@ class NerfSynthesisNetwork(torch.nn.Module):
             rgb = self.rgb_linear(h)
             outputs = torch.cat([rgb, alpha], -1)
         else:
-            w = self.current_w.narrow(dim=0, start=len(self.pts_linears), length=1)
-            outputs = self.output_linear(h, w)
+            outputs = self.output_linear(h, self.current_ws)
 
         return outputs
 
@@ -857,10 +849,8 @@ class NeRFGenerator(torch.nn.Module):
         self.c_dim = c_dim
         self.w_dim = w_dim
         self.img_resolution = img_resolution
-        self.img_channels = img_channels
-        self.synthesis = NerfSynthesisNetwork(w_dim=w_dim, img_resolution=img_resolution, img_channels=img_channels, cfg=cfg, **synthesis_kwargs)
-        self.num_ws = self.synthesis.num_ws
-        self.mapping = MappingNetwork(z_dim=z_dim, c_dim=c_dim, w_dim=w_dim, num_ws=self.num_ws, w_avg_beta=None, **mapping_kwargs) # todo: w_avg_beta shouldn't be here but it's absence breaks code something
+        self.synthesis = NerfSynthesisNetwork(w_dim=w_dim, img_resolution=img_resolution, cfg=cfg, **synthesis_kwargs)
+        self.mapping = MappingNetwork(z_dim=z_dim, c_dim=c_dim, w_dim=w_dim, num_ws=None, w_avg_beta=None, **mapping_kwargs) # todo: w_avg_beta shouldn't be here but it's absence breaks code something
 
     def forward(self, z, c, truncation_psi=1, truncation_cutoff=None, **synthesis_kwargs):
         ws = self.mapping(z, c, truncation_psi=truncation_psi, truncation_cutoff=truncation_cutoff)
