@@ -35,6 +35,7 @@ def setup_training_loop_kwargs(
     # General options (not included in desc).
     gpus       = None, # Number of GPUs: <int>, default = 1 gpu
     snap       = None, # Snapshot interval: <int>, default = 50 ticks
+    generate_video = False,  # Generate a snapshot video? Only valid for NeRFGenerator
     metrics    = None, # List of metric names: [], ['fid50k_full'] (default), ...
     seed       = None, # Random seed: <int>, default = 0
 
@@ -91,6 +92,7 @@ def setup_training_loop_kwargs(
         raise UserError('--snap must be at least 1')
     args.image_snapshot_ticks = snap
     args.network_snapshot_ticks = snap
+    args.generate_video = generate_video
 
     if metrics is None:
         metrics = ['fid50k_full']
@@ -436,6 +438,7 @@ class CommaSeparatedList(click.ParamType):
 @click.option('--outdir', help='Where to save the results', required=True, metavar='DIR')
 @click.option('--gpus', help='Number of GPUs to use [default: 1]', type=int, metavar='INT')
 @click.option('--snap', help='Snapshot interval [default: 50 ticks]', type=int, metavar='INT')
+@click.option('--generate_video', help='Generate a snapshot video. Only valid for NeRF network', type=bool, metavar='BOOL')
 @click.option('--metrics', help='Comma-separated list or "none" [default: fid50k_full]', type=CommaSeparatedList())
 @click.option('--seed', help='Random seed [default: 0]', type=int, metavar='INT')
 @click.option('-n', '--dry-run', help='Print training options and exit', is_flag=True)
