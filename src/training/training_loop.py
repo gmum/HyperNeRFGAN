@@ -11,11 +11,16 @@ import time
 import copy
 import json
 import pickle
+
+import imageio as imageio
 import psutil
 import PIL.Image
 import numpy as np
 import torch
 import dnnlib
+from nerf.load_blender import pose_spherical
+from nerf.run_nerf import render_path
+from nerf.run_nerf_helpers import to8b
 from torch_utils import misc
 from torch_utils import training_stats
 from torch_utils.ops import conv2d_gradfix
@@ -118,6 +123,7 @@ def training_loop(
     allow_tf32              = False,    # Enable torch.backends.cuda.matmul.allow_tf32 and torch.backends.cudnn.allow_tf32?
     abort_fn                = None,     # Callback function for determining whether to abort training. Must return consistent results across ranks.
     progress_fn             = None,     # Callback function for updating training progress. Called for all ranks.
+    generate_video          = False,    # Generate a snapshot video? Only valid for NeRFGenerator
 ):
     # Initialize.
     start_time = time.time()
@@ -222,6 +228,7 @@ def training_loop(
         grid_size, images, labels = setup_snapshot_image_grid(training_set=training_set)
         save_image_grid(images, os.path.join(run_dir, 'reals.jpg'), drange=[0,255], grid_size=grid_size)
         grid_z = torch.randn([labels.shape[0], G.z_dim], device=device).split(batch_gpu)
+        vid_z = torch.randn([9, G.z_dim], device=device)
         grid_c = torch.from_numpy(labels).to(device).split(batch_gpu)
         images = torch.cat([G_ema(z=z, c=c, noise_mode='const').cpu() for z, c in zip(grid_z, grid_c)]).numpy()
         save_image_grid(images, os.path.join(run_dir, 'fakes_init.jpg'), drange=[-1,1], grid_size=grid_size)
@@ -349,6 +356,15 @@ def training_loop(
             images = torch.cat([G_ema(z=z, c=c, noise_mode='const').cpu() for z, c in zip(grid_z, grid_c)]).numpy()
             save_image_grid(images, os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}.jpg'), drange=[-1,1], grid_size=grid_size)
 
+            if generate_video:
+                print('Exporting sample video...')
+                imgs = make_video(G_ema, vid_z)
+
+                imageio.mimwrite(os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}.mp4'),
+                                 to8b(imgs),
+                                 fps=16,
+                                 quality=8)
+
         # Save network snapshot.
         snapshot_pkl = None
         snapshot_data = None
@@ -418,5 +434,25 @@ def training_loop(
     if rank == 0:
         print()
         print('Exiting...')
+
+
+def make_video(G_ema, vid_z: torch.Tensor, poses=64) -> np.ndarray:
+    videos = []
+    render_poses = [pose_spherical(theta=theta, phi=0, radius=4.0) for theta in
+                    torch.linspace(-180, 180, poses)]
+    for j in range(9):
+        z = vid_z[j].unsqueeze(0)
+        rgbs = [G_ema(z=z, c=None, poses=[c2w], scale=False).cpu().numpy()
+                for c2w in render_poses]
+        rgbs = np.concatenate(rgbs, 0)
+        videos.append(rgbs)
+
+    print('Done rendering')
+    videos = np.stack(videos)
+    N, L, C, H, W = videos.shape
+    videos = videos.reshape((3, 3, L, C, H, W))
+    videos = np.moveaxis(videos, [3, 2, 1], [-1, 0, -3])
+    videos = videos.reshape((L, 3 * H, 3 * W, C))
+    return videos
 
 #----------------------------------------------------------------------------

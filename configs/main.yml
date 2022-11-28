@@ -28,6 +28,7 @@ train_args:
   data: ${dataset.target_path}
   gpus: ${num_gpus}
   cfg: nerf
+  generate_video: True
   snap: 100
 
   # Let's by default have only x flips

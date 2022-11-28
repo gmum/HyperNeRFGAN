@@ -7,6 +7,7 @@
 # license agreement from NVIDIA CORPORATION is strictly prohibited.
 
 from functools import partial
+from typing import Optional, List
 
 import numpy as np
 import torch
@@ -694,7 +695,6 @@ class NerfSynthesisNetwork(torch.nn.Module):
         self.skips = [4]
         self.use_viewdirs = False
 
-        W = self.W
         self.pts_linears = nn.ModuleList(
             [NerfSynthesisLayer(in_channels=self.input_ch,
                                 out_channels=self.width,
@@ -753,12 +753,20 @@ class NerfSynthesisNetwork(torch.nn.Module):
             'raw_noise_std': 0,
         }
 
-    def forward(self, ws, **block_kwargs):
-        theta = np.random.uniform(low=-180, high=180)
-        c2w = pose_spherical(theta=theta, phi=-30.0, radius=4.0)
+    def forward(self,
+                ws: torch.Tensor,
+                poses: Optional[List[torch.Tensor]]=None,
+                scale: bool=True,
+                **kwargs):
 
-        imgs = []
-        for i in range(ws.shape[0]):
+        if poses is None:
+            poses = [pose_spherical(theta=np.random.uniform(low=-180, high=180),
+                                    phi=np.random.uniform(low=-90, high=0),
+                                    radius=4.0)
+                     for _ in range(ws.shape[0])]
+
+        rgbs = []
+        for i, c2w in enumerate(poses):
             self.current_ws = ws.narrow(dim=0, start=i, length=1)  # value used in `forward_rays`
             rgb, _, _, _ = render(self.height,
                                   self.width,
@@ -769,13 +777,14 @@ class NerfSynthesisNetwork(torch.nn.Module):
                                   network_fn=self.forward_rays,
                                   **self.render_kwargs)
 
-            imgs.append(rgb)
+            rgbs.append(rgb)
 
-        imgs = torch.stack(imgs).permute((0, 3, 1, 2))
-        imgs = (imgs - 0.5) * 2  # Rescale to [-1, 1]
-        return imgs
+        rgbs = torch.stack(rgbs).permute((0, 3, 1, 2))
+        if scale:
+            rgbs = (rgbs - 0.5) * 2  # Rescale to [-1, 1]
+        return rgbs
 
-    def forward_rays(self, x, **block_kwargs):
+    def forward_rays(self, x):
         input_pts, input_views = torch.split(x, [self.input_ch, self.input_ch_views], dim=-1)
         input_pts = input_pts.to(device=self.current_ws.device)
         h = input_pts
