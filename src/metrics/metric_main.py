@@ -86,10 +86,43 @@ def fid50k_full(opts):
     return dict(fid50k_full=fid)
 
 @register_metric
+def fid10k_full(opts):
+    opts.dataset_kwargs.update(max_size=None, xflip=False)
+    fid = frechet_inception_distance.compute_fid(opts, max_real=None, num_gen=10000)
+    return dict(fid10k_full=fid)
+
+
+@register_metric
+def fid5k_full(opts):
+    opts.dataset_kwargs.update(max_size=None, xflip=False)
+    fid = frechet_inception_distance.compute_fid(opts, max_real=None, num_gen=5000)
+    return dict(fid5k_full=fid)
+
+
+@register_metric
+def fid1k_full(opts):
+    opts.dataset_kwargs.update(max_size=None, xflip=False)
+    fid = frechet_inception_distance.compute_fid(opts, max_real=None, num_gen=1000)
+    return dict(fid1k_full=fid)
+
+
+@register_metric
 def kid50k_full(opts):
     opts.dataset_kwargs.update(max_size=None, xflip=False)
     kid = kernel_inception_distance.compute_kid(opts, max_real=1000000, num_gen=50000, num_subsets=100, max_subset_size=1000)
     return dict(kid50k_full=kid)
+
+@register_metric
+def kid10k_full(opts):
+    opts.dataset_kwargs.update(max_size=None, xflip=False)
+    kid = kernel_inception_distance.compute_kid(opts, max_real=1000000, num_gen=10000, num_subsets=100, max_subset_size=1000)
+    return dict(kid10k_full=kid)
+
+@register_metric
+def kid1k_full(opts):
+    opts.dataset_kwargs.update(max_size=None, xflip=False)
+    kid = kernel_inception_distance.compute_kid(opts, max_real=1000000, num_gen=1000, num_subsets=100, max_subset_size=1000)
+    return dict(kid1k_full=kid)
 
 @register_metric
 def pr50k3_full(opts):
@@ -107,6 +140,20 @@ def is50k(opts):
     opts.dataset_kwargs.update(max_size=None, xflip=False)
     mean, std = inception_score.compute_is(opts, num_gen=50000, num_splits=10)
     return dict(is50k_mean=mean, is50k_std=std)
+
+
+@register_metric
+def is10k(opts):
+    opts.dataset_kwargs.update(max_size=None, xflip=False)
+    mean, std = inception_score.compute_is(opts, num_gen=10000, num_splits=10)
+    return dict(is10k_mean=mean, is10k_std=std)
+
+@register_metric
+def is1k(opts):
+    opts.dataset_kwargs.update(max_size=None, xflip=False)
+    mean, std = inception_score.compute_is(opts, num_gen=1000, num_splits=10)
+    return dict(is1k_mean=mean, is1k_std=std)
+
 
 #----------------------------------------------------------------------------
 # Legacy metrics.
