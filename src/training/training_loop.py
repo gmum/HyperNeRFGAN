@@ -170,6 +170,7 @@ def training_loop(
         z = torch.empty([batch_gpu, G.z_dim], device=device)
         c = torch.empty([batch_gpu, G.c_dim], device=device)
         img = misc.print_module_summary(G, [z, c])
+        img = torch.empty([batch_gpu, img.shape[1], D.img_resolution, D.img_resolution], device=device)
         misc.print_module_summary(D, [img, c])
 
     # Setup augmentation.
@@ -177,7 +178,7 @@ def training_loop(
         print('Setting up augmentation...')
     augment_pipe = None
     ada_stats = None
-    if (augment_kwargs is not None) and (augment_p > 0 or ada_target is not None):
+    if (augment_kwargs is not None) and (augment_p > 0 or ada_target is not None or augment_kwargs['crop']):
         augment_pipe = dnnlib.util.construct_class_by_name(**augment_kwargs).train().requires_grad_(False).to(device) # subclass of torch.nn.Module
         augment_pipe.p.copy_(torch.as_tensor(augment_p))
         if ada_target is not None:
@@ -200,7 +201,8 @@ def training_loop(
         print('Setting up training phases...')
     loss = dnnlib.util.construct_class_by_name(device=device, **ddp_modules, **loss_kwargs) # subclass of training.loss.Loss
     phases = []
-    for name, module, opt_kwargs, reg_interval in [('G', G, G_opt_kwargs, G_reg_interval), ('D', D, D_opt_kwargs, D_reg_interval)]:
+    for name, module, opt_kwargs, reg_interval in [('G', G, G_opt_kwargs, G_reg_interval),
+                                                   ('D', D, D_opt_kwargs, D_reg_interval)]:
         if reg_interval is None:
             opt = dnnlib.util.construct_class_by_name(params=module.parameters(), **opt_kwargs) # subclass of torch.optim.Optimizer
             phases += [dnnlib.EasyDict(name=name+'both', module=module, opt=opt, interval=1)]
@@ -230,7 +232,7 @@ def training_loop(
         grid_z = torch.randn([labels.shape[0], G.z_dim], device=device).split(batch_gpu)
         vid_z = torch.randn([9, G.z_dim], device=device)
         grid_c = torch.from_numpy(labels).to(device).split(batch_gpu)
-        images = torch.cat([G_ema(z=z, c=c, noise_mode='const').cpu() for z, c in zip(grid_z, grid_c)]).numpy()
+        images = torch.cat([G_ema(z=z, c=c, noise_mode='const', crop=False, perturb=False).cpu() for z, c in zip(grid_z, grid_c)]).numpy()
         save_image_grid(images, os.path.join(run_dir, 'fakes_init.jpg'), drange=[-1,1], grid_size=grid_size)
 
     # Initialize logs.
@@ -353,7 +355,7 @@ def training_loop(
 
         # Save image snapshot.
         if (rank == 0) and (image_snapshot_ticks is not None) and (done or cur_tick % image_snapshot_ticks == 0):
-            images = torch.cat([G_ema(z=z, c=c, noise_mode='const').cpu() for z, c in zip(grid_z, grid_c)]).numpy()
+            images = torch.cat([G_ema(z=z, c=c, noise_mode='const', crop=False).cpu() for z, c in zip(grid_z, grid_c)]).numpy()
             save_image_grid(images, os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}.jpg'), drange=[-1,1], grid_size=grid_size)
 
             if generate_video:
@@ -438,11 +440,11 @@ def training_loop(
 
 def make_video(G_ema, vid_z: torch.Tensor, poses=64) -> np.ndarray:
     videos = []
-    render_poses = [pose_spherical(theta=theta, phi=0, radius=4.0) for theta in
+    render_poses = [pose_spherical(theta=theta, phi=-30, radius=4.0) for theta in
                     torch.linspace(-180, 180, poses)]
     for j in range(9):
         z = vid_z[j].unsqueeze(0)
-        rgbs = [G_ema(z=z, c=None, poses=[c2w], scale=False).cpu().numpy()
+        rgbs = [G_ema(z=z, c=None, poses=[c2w], scale=False, crop=False, perturb=False).cpu().numpy()
                 for c2w in render_poses]
         rgbs = np.concatenate(rgbs, 0)
         videos.append(rgbs)

@@ -64,10 +64,19 @@ def batchify_rays(rays_flat, chunk=1024*32, **kwargs):
     return all_ret
 
 
-def render(H, W, K, chunk=1024*32, rays=None, c2w=None, ndc=True,
-                  near=0., far=1.,
-                  use_viewdirs=False, c2w_staticcam=None,
-                  **kwargs):
+def render(H,
+           W,
+           K,
+           chunk=1024 * 32,
+           rays=None,
+           c2w=None,
+           ndc=True,
+           near=0.,
+           far=1.,
+           use_viewdirs=False,
+           c2w_staticcam=None,
+           patch_size=None,
+           **kwargs):
     """Render rays
     Args:
       H: int. Height of image in pixels.
@@ -90,9 +99,16 @@ def render(H, W, K, chunk=1024*32, rays=None, c2w=None, ndc=True,
       acc_map: [batch_size]. Accumulated opacity (alpha) along a ray.
       extras: dict with everything returned by render_rays().
     """
+    assert patch_size is None or c2w is not None
     if c2w is not None:
-        # special case to render full image
+        # special case to render full or cropped image
         rays_o, rays_d = get_rays(H, W, K, c2w)
+
+        if patch_size is not None:
+            crop_h = torch.randint(0, H - patch_size, size=(1,))
+            crop_w = torch.randint(0, W - patch_size, size=(1,))
+            rays_o = rays_o[crop_w:crop_w + patch_size, crop_h:crop_h + patch_size]
+            rays_d = rays_d[crop_w:crop_w + patch_size, crop_h:crop_h + patch_size]
     else:
         # use provided ray batch
         rays_o, rays_d = rays
@@ -281,7 +297,7 @@ def raw2outputs(raw, z_vals, rays_d, raw_noise_std=0, white_bkgd=False, pytest=F
     rgb = torch.sigmoid(raw[...,:3])  # [N_rays, N_samples, 3]
     noise = 0.
     if raw_noise_std > 0.:
-        noise = torch.randn(raw[...,3].shape) * raw_noise_std
+        noise = torch.randn(raw[...,3].shape, device=raw.device) * raw_noise_std
 
         # Overwrite randomly sampled data if pytest
         if pytest:
@@ -390,7 +406,11 @@ def render_rays(ray_batch,
         rgb_map_0, disp_map_0, acc_map_0 = rgb_map, disp_map, acc_map
 
         z_vals_mid = .5 * (z_vals[...,1:] + z_vals[...,:-1])
-        z_samples = sample_pdf(z_vals_mid, weights[...,1:-1], N_importance, det=(perturb==0.), pytest=pytest)
+        z_samples = sample_pdf(z_vals_mid,
+                               weights[...,1:-1].to(device=z_vals_mid.device),
+                               N_importance,
+                               det=(perturb==0.),
+                               pytest=pytest)
         z_samples = z_samples.detach()
 
         z_vals, _ = torch.sort(torch.cat([z_vals, z_samples], -1), -1)

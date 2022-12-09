@@ -274,7 +274,7 @@ def setup_training_loop_kwargs(
     if aug == 'ada':
         args.ada_target = 0.6
 
-    elif aug == 'noaug':
+    elif aug in {'noaug', 'crop'}:
         pass
 
     elif aug == 'fixed':
@@ -304,13 +304,17 @@ def setup_training_loop_kwargs(
 
     assert augpipe is None or isinstance(augpipe, str)
     if augpipe is None:
-        augpipe = 'bgc'
+        if aug == 'crop':
+            augpipe = 'crop'
+        else:
+            augpipe = 'bgc'
     else:
         if aug == 'noaug':
             raise UserError('--augpipe cannot be specified with --aug=noaug')
         desc += f'-{augpipe}'
 
     augpipe_specs = {
+        'crop':   dict(crop=True),
         'blit':   dict(xflip=1, rotate90=1, xint=1),
         'geom':   dict(scale=1, rotate=1, aniso=1, xfrac=1),
         'color':  dict(brightness=1, contrast=1, lumaflip=1, hue=1, saturation=1),
