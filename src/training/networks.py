@@ -746,17 +746,19 @@ class NerfSynthesisNetwork(torch.nn.Module):
             'network_query_fn': self.network_query_fn,
             'perturb': self.cfg.perturb,
             'ndc': False,
-            'N_importance': 0,
-            'N_samples': 16,
+            'N_samples': self.cfg.n_samples,
+            'N_importance': self.cfg.n_importance,
             'use_viewdirs': False,
-            'white_bkgd': True,
-            'raw_noise_std': 0,
+            'white_bkgd': self.cfg.white_bkgd,
+            'raw_noise_std': self.cfg.raw_noise_std,
         }
 
     def forward(self,
                 ws: torch.Tensor,
                 poses: Optional[List[torch.Tensor]]=None,
                 scale: bool=True,
+                crop: bool=False,
+                perturb: bool=False,
                 **kwargs):
 
         if poses is None:
@@ -764,6 +766,17 @@ class NerfSynthesisNetwork(torch.nn.Module):
                                     phi=np.random.uniform(low=-90, high=0),
                                     radius=4.0)
                      for _ in range(ws.shape[0])]
+
+        if crop and self.cfg.patch_size is not None:
+            self.render_kwargs['patch_size'] = self.cfg.patch_size
+        else:
+            self.render_kwargs['patch_size'] = None
+        if perturb:
+            self.render_kwargs['perturb'] = self.cfg.perturb
+            self.render_kwargs['raw_noise_std'] = self.cfg.raw_noise_std
+        else:
+            self.render_kwargs['perturb'] = 0.0
+            self.render_kwargs['raw_noise_std'] = 0.0
 
         rgbs = []
         for i, c2w in enumerate(poses):
@@ -775,6 +788,7 @@ class NerfSynthesisNetwork(torch.nn.Module):
                                   far=6.0,
                                   c2w=c2w[:3, :4],
                                   network_fn=self.forward_rays,
+                                  network_fine=self.forward_rays,
                                   **self.render_kwargs)
 
             rgbs.append(rgb)
