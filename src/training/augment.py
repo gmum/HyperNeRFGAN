@@ -120,7 +120,7 @@ class AugmentPipe(torch.nn.Module):
         scale=0, rotate=0, aniso=0, xfrac=0, scale_std=0.2, rotate_max=1, aniso_std=0.2, xfrac_std=0.125,
         brightness=0, contrast=0, lumaflip=0, hue=0, saturation=0, brightness_std=0.2, contrast_std=0.5, hue_max=1, saturation_std=1,
         imgfilter=0, imgfilter_bands=[1,1,1,1], imgfilter_std=1,
-        noise=0, cutout=0, noise_std=0.1, cutout_size=0.5,
+        noise=0, cutout=0, noise_std=0.1, cutout_size=0.5, crop=False,
     ):
         super().__init__()
         self.register_buffer('p', torch.ones([]))       # Overall multiplier for augmentation probability.
@@ -178,8 +178,13 @@ class AugmentPipe(torch.nn.Module):
             Hz_fbank[i, (Hz_fbank.shape[1] - Hz_hi2.size) // 2 : (Hz_fbank.shape[1] + Hz_hi2.size) // 2] += Hz_hi2
         self.register_buffer('Hz_fbank', torch.as_tensor(Hz_fbank, dtype=torch.float32))
 
-    def forward(self, images, debug_percentile=None):
+        # Should the image be cropped?
+        self.crop = crop
+
+    def forward(self, images, debug_percentile=None, img_resolution=None, pre_cropped=False):
         assert isinstance(images, torch.Tensor) and images.ndim == 4
+        assert not self.crop or img_resolution is not None
+
         batch_size, num_channels, height, width = images.shape
         device = images.device
         if debug_percentile is not None:
@@ -425,6 +430,18 @@ class AugmentPipe(torch.nn.Module):
             mask_y = (((coord_y + 0.5) / height - center[:, 1]).abs() >= size[:, 1] / 2)
             mask = torch.logical_or(mask_x, mask_y).to(torch.float32)
             images = images * mask
+
+        if self.crop and not pre_cropped:
+            crop_h = torch.randint(0, height - img_resolution, size=(batch_size,)).view(batch_size, 1, 1, 1)
+            h_idx = torch.arange(0, width).view(1,1,1,-1).expand(batch_size, num_channels, width, -1)
+            crop_h_mask = torch.logical_and(h_idx >= crop_h, h_idx < crop_h + img_resolution)
+
+            crop_w = torch.randint(0, width - img_resolution, size=(batch_size,)).view(batch_size, 1, 1, 1)
+            h_idx = torch.arange(0, width).view(1, 1, -1, 1).expand(batch_size, num_channels, -1, height)
+            crop_w_mask = torch.logical_and(h_idx >= crop_w, h_idx < crop_w + img_resolution)
+
+            crop_mask = torch.logical_and(crop_w_mask, crop_h_mask)
+            images = images[crop_mask].view(batch_size, num_channels, img_resolution, img_resolution)
 
         return images
 
