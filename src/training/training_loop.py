@@ -124,6 +124,7 @@ def training_loop(
     abort_fn                = None,     # Callback function for determining whether to abort training. Must return consistent results across ranks.
     progress_fn             = None,     # Callback function for updating training progress. Called for all ranks.
     generate_video          = False,    # Generate a snapshot video? Only valid for NeRFGenerator
+    video_front_view        = False,    # If true, camera for snapshot video will stay in front of the object.
 ):
     # Initialize.
     start_time = time.time()
@@ -438,10 +439,20 @@ def training_loop(
         print('Exiting...')
 
 
-def make_video(G_ema, vid_z: torch.Tensor, poses=64) -> np.ndarray:
+def make_video(G_ema, vid_z: torch.Tensor, poses=64, front_view=False) -> np.ndarray:
     videos = []
-    render_poses = [pose_spherical(theta=theta, phi=-30, radius=4.0) for theta in
-                    torch.linspace(-180, 180, poses)]
+    if not front_view:
+        render_poses = [pose_spherical(theta=theta, phi=30, radius=4.0) for theta in
+                        torch.linspace(-180, 180, poses)]
+    else:
+        quarter_steps = int(poses / 2)
+        thetas = torch.cat([torch.linspace(-8, 8, 2 * quarter_steps),
+                            torch.linspace(8, -8, 2 * quarter_steps)])
+        phis = torch.cat([torch.linspace(0, 4, quarter_steps),
+                          torch.linspace(4, -4, 2 * quarter_steps),
+                          torch.linspace(-4, 0, quarter_steps)])
+        render_poses = [pose_spherical(theta=theta, phi=phi, radius=4.0) for theta, phi in zip(thetas, phis)]
+
     for j in range(9):
         z = vid_z[j].unsqueeze(0)
         rgbs = [G_ema(z=z, c=None, poses=[c2w], scale=False, crop=False, perturb=False).cpu().numpy()
