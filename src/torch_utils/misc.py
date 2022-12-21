@@ -266,3 +266,23 @@ def print_module_summary(module, inputs, max_nesting=3, skip_redundant=True):
     return outputs
 
 #----------------------------------------------------------------------------
+
+
+def uniform_circle(low: float, high: float):
+    """Sample a point uniformly from half of a circle.
+
+    The returned point is described by an angle from `low` to `high`. The samples
+    are drawn so that the points on the circle would follow a uniform distribution.
+    Angles don't follow a uniform distribution.
+    """
+    if low < 0 or high > 180 or low > high:
+        raise ValueError("Angles must be in range [0, 180] and `low` must be smaller than `high`!")
+
+    low = low / 180 * np.pi
+    high = high / 180 * np.pi
+    sample = np.random.uniform(low=0, high=1)
+    sample_radians = np.arccos(np.cos(low) - sample * (np.cos(low) - np.cos(high)))
+    return sample_radians / np.pi * 180
+
+
+#----------------------------------------------------------------------------

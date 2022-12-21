@@ -21,6 +21,7 @@ from nerf.run_nerf_helpers import get_embedder
 from nerf.load_blender import pose_spherical
 from torch_utils import misc
 from torch_utils import persistence
+from torch_utils.misc import uniform_circle
 from torch_utils.ops import conv2d_resample
 from torch_utils.ops import upfirdn2d
 from torch_utils.ops import bias_act
@@ -763,7 +764,7 @@ class NerfSynthesisNetwork(torch.nn.Module):
 
         if poses is None:
             poses = [pose_spherical(theta=np.random.uniform(low=-180, high=180),
-                                    phi=np.random.uniform(low=-90, high=0),
+                                    phi=90 - uniform_circle(low=90, high=180),
                                     radius=4.0)
                      for _ in range(ws.shape[0])]
 
