@@ -1,4 +1,4 @@
-name: inr-gan
+name: nerf-gan
 channels:
   - pytorch
   - defaults
