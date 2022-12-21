@@ -753,6 +753,7 @@ class NerfSynthesisNetwork(torch.nn.Module):
             'white_bkgd': self.cfg.white_bkgd,
             'raw_noise_std': self.cfg.raw_noise_std,
         }
+        self.first_pass = True  # Hack for fixing high memory usage during first pass
 
     def forward(self,
                 ws: torch.Tensor,
@@ -767,6 +768,10 @@ class NerfSynthesisNetwork(torch.nn.Module):
                                     phi=90 - uniform_circle(low=90, high=180),
                                     radius=4.0)
                      for _ in range(ws.shape[0])]
+
+        if self.first_pass:
+            self.render_kwargs['N_samples'] = 2
+            self.render_kwargs['N_importance'] = 0
 
         if crop and self.cfg.patch_size is not None:
             self.render_kwargs['patch_size'] = self.cfg.patch_size
@@ -797,6 +802,12 @@ class NerfSynthesisNetwork(torch.nn.Module):
         rgbs = torch.stack(rgbs).permute((0, 3, 1, 2))
         if scale:
             rgbs = (rgbs - 0.5) * 2  # Rescale to [-1, 1]
+
+        if self.first_pass:
+            self.render_kwargs['N_samples'] = self.cfg.n_samples
+            self.render_kwargs['N_importance'] = self.cfg.n_importance
+            self.first_pass = False
+
         return rgbs
 
     def forward_rays(self, x):
