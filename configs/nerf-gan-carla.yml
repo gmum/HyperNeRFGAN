@@ -4,14 +4,14 @@ generator:
   perturb: 1.0
   raw_noise_std: 1.0
   n_samples: 32
-  n_importance: 0
+  n_importance: 32
   white_bkgd: true
-  patch_size: 32
-  phi_low: -2
-  phi_high: 2
-  theta_low: -4
-  theta_high: 4
-  render_size: 1.0
+  patch_size: 64
+  phi_low: -90
+  phi_high: 0
+  theta_low: -180
+  theta_high: 180
+  render_size: 2.2
 
   fmm:
     enabled: true
@@ -19,7 +19,7 @@ generator:
     activation: demod
 
 loss_kwargs:
-  r1_gamma: 0.01
+  r1_gamma: 1.0
   pl_weight: 0
   style_mixing_prob: 0.0
 
