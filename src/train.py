@@ -195,7 +195,13 @@ def setup_training_loop_kwargs(
         args.G_kwargs.synthesis_kwargs.n_importance = hydra_cfg.generator.get('n_importance', spec.n_importance)
         args.G_kwargs.synthesis_kwargs.white_bkgd = hydra_cfg.generator.get('white_bkgd', spec.white_bkgd)
         args.G_kwargs.synthesis_kwargs.patch_size = hydra_cfg.generator.get('patch_size', spec.patch_size)
+        args.G_kwargs.synthesis_kwargs.theta_low = hydra_cfg.generator.get('theta_low', -180)
+        args.G_kwargs.synthesis_kwargs.theta_high = hydra_cfg.generator.get('theta_high', 180)
+        args.G_kwargs.synthesis_kwargs.phi_low = hydra_cfg.generator.get('phi_low', -90)
+        args.G_kwargs.synthesis_kwargs.phi_high = hydra_cfg.generator.get('phi_high', 0)
+        args.G_kwargs.synthesis_kwargs.render_size = hydra_cfg.generator.get('render_size', 4.0)
         args.D_kwargs.patch_size = hydra_cfg.generator.get('patch_size', spec.patch_size)
+        args.D_kwargs.channel_max = 512
     else:
         args.G_kwargs = dnnlib.EasyDict(class_name='training.networks.Generator', z_dim=512, w_dim=512,
                                         mapping_kwargs=dnnlib.EasyDict(), synthesis_kwargs=dnnlib.EasyDict())
@@ -468,10 +474,10 @@ class CommaSeparatedList(click.ParamType):
 @click.option('--batch', help='Override batch size', type=int, metavar='INT')
 
 # Discriminator augmentation.
-@click.option('--aug', help='Augmentation mode [default: ada]', type=click.Choice(['noaug', 'ada', 'fixed']))
+@click.option('--aug', help='Augmentation mode [default: ada]', type=click.Choice(['noaug', 'ada', 'fixed', 'crop']))
 @click.option('--p', help='Augmentation probability for --aug=fixed', type=float)
 @click.option('--target', help='ADA target value for --aug=ada', type=float)
-@click.option('--augpipe', help='Augmentation pipeline [default: bgc]', type=click.Choice(['blit', 'geom', 'color', 'filter', 'noise', 'cutout', 'bg', 'bgc', 'bgcf', 'bgcfn', 'bgcfnc']))
+@click.option('--augpipe', help='Augmentation pipeline [default: bgc]', type=click.Choice(['crop', 'blit', 'geom', 'color', 'filter', 'noise', 'cutout', 'bg', 'bgc', 'bgcf', 'bgcfn', 'bgcfnc']))
 
 # Transfer learning.
 @click.option('--resume', help='Resume training [default: noresume]', metavar='PKL')
