@@ -753,6 +753,7 @@ class NerfSynthesisNetwork(torch.nn.Module):
             'white_bkgd': self.cfg.white_bkgd,
             'raw_noise_std': self.cfg.raw_noise_std,
         }
+        self.index_channel = False
         self.first_pass = True  # Hack for fixing high memory usage during first pass
 
     def forward(self,
@@ -764,10 +765,16 @@ class NerfSynthesisNetwork(torch.nn.Module):
                 **kwargs):
 
         if poses is None:
-            poses = [pose_spherical(theta=np.random.uniform(low=-180, high=180),
-                                    phi=90 - uniform_circle(low=90, high=180),
-                                    radius=4.0)
-                     for _ in range(ws.shape[0])]
+            if self.cfg.use_normal:
+                poses = [pose_spherical(theta=np.random.normal(0, self.cfg.theta_std),
+                                        phi=90 - uniform_circle(low=90 - self.cfg.phi_high, high=90 - self.cfg.phi_low),
+                                        radius=4.0)
+                         for _ in range(ws.shape[0])]
+            else:
+                poses = [pose_spherical(theta=np.random.uniform(low=self.cfg.theta_low, high=self.cfg.theta_high),
+                                        phi=90 - uniform_circle(low=90 - self.cfg.phi_high, high=90 - self.cfg.phi_low),
+                                        radius=4.0)
+                         for _ in range(ws.shape[0])]
 
         if self.first_pass:
             self.render_kwargs['N_samples'] = 2
@@ -794,7 +801,7 @@ class NerfSynthesisNetwork(torch.nn.Module):
                                   far=4.0 +  self.cfg.render_size / 2,
                                   c2w=c2w[:3, :4],
                                   network_fn=self.forward_rays,
-                                  network_fine=self.forward_rays,
+                                  index_channel=self.index_channel,
                                   **self.render_kwargs)
 
             rgbs.append(rgb)
