@@ -361,13 +361,17 @@ def training_loop(
 
             if generate_video:
                 print('Exporting sample video...')
-                imgs = make_video(G_ema, vid_z)
-
+                imgs = make_video(G_ema, vid_z, front_view=False)
                 imageio.mimwrite(os.path.join(run_dir, f'fakes{cur_nimg//1000:06d}.mp4'),
                                  to8b(imgs),
                                  fps=16,
                                  quality=8)
-
+                if video_front_view:
+                    imgs = make_video(G_ema, vid_z, front_view=True)
+                    imageio.mimwrite(os.path.join(run_dir, f'fakes{cur_nimg // 1000:06d}_front.mp4'),
+                                     to8b(imgs),
+                                     fps=16,
+                                     quality=8)
         # Save network snapshot.
         snapshot_pkl = None
         snapshot_data = None
@@ -442,15 +446,15 @@ def training_loop(
 def make_video(G_ema, vid_z: torch.Tensor, poses=64, front_view=False) -> np.ndarray:
     videos = []
     if not front_view:
-        render_poses = [pose_spherical(theta=theta, phi=30, radius=4.0) for theta in
+        render_poses = [pose_spherical(theta=theta, phi=-30, radius=4.0) for theta in
                         torch.linspace(-180, 180, poses)]
     else:
         quarter_steps = int(poses / 2)
-        thetas = torch.cat([torch.linspace(-8, 8, 2 * quarter_steps),
-                            torch.linspace(8, -8, 2 * quarter_steps)])
-        phis = torch.cat([torch.linspace(0, 4, quarter_steps),
-                          torch.linspace(4, -4, 2 * quarter_steps),
-                          torch.linspace(-4, 0, quarter_steps)])
+        thetas = torch.cat([torch.linspace(-20, 20, 2 * quarter_steps),
+                            torch.linspace(20, -20, 2 * quarter_steps)])
+        phis = torch.cat([torch.linspace(0, 8, quarter_steps),
+                          torch.linspace(8, -8, 2 * quarter_steps),
+                          torch.linspace(-8, 0, quarter_steps)])
         render_poses = [pose_spherical(theta=theta, phi=phi, radius=4.0) for theta, phi in zip(thetas, phis)]
 
     for j in range(9):

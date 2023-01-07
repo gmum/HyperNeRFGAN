@@ -268,6 +268,18 @@ def print_module_summary(module, inputs, max_nesting=3, skip_redundant=True):
 #----------------------------------------------------------------------------
 
 
+def make_indexing_channels(size, channel_first=True, low=-1):
+    i, j = torch.meshgrid(torch.linspace(low, 1, size), torch.linspace(low, 1, size))
+    if channel_first:
+        channels = torch.stack([i, j])
+        return channels + torch.randn(channels.shape) * (1 - low) / 2
+    else:
+        channels = torch.stack([i, j], dim=2)
+        return channels + torch.randn(channels.shape) * (1 - low) / 2
+
+#----------------------------------------------------------------------------
+
+
 def uniform_circle(low: float, high: float):
     """Sample a point uniformly from half of a circle.
 

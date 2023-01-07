@@ -200,6 +200,9 @@ def setup_training_loop_kwargs(
         args.G_kwargs.synthesis_kwargs.phi_low = hydra_cfg.generator.get('phi_low', -90)
         args.G_kwargs.synthesis_kwargs.phi_high = hydra_cfg.generator.get('phi_high', 0)
         args.G_kwargs.synthesis_kwargs.render_size = hydra_cfg.generator.get('render_size', 4.0)
+        args.G_kwargs.synthesis_kwargs.shift = hydra_cfg.generator.get('shift', 0.0)
+        args.G_kwargs.synthesis_kwargs.use_normal = hydra_cfg.generator.get('use_normal', False)
+        args.G_kwargs.synthesis_kwargs.theta_std = hydra_cfg.generator.get('theta_std', 1.0)
         args.D_kwargs.patch_size = hydra_cfg.generator.get('patch_size', spec.patch_size)
         args.D_kwargs.channel_max = 512
     else:
@@ -322,7 +325,7 @@ def setup_training_loop_kwargs(
         desc += f'-{augpipe}'
 
     augpipe_specs = {
-        'crop':   dict(crop=True),
+        'crop':   dict(crop=True, xflip=1),
         'blit':   dict(xflip=1, rotate90=1, xint=1),
         'geom':   dict(scale=1, rotate=1, aniso=1, xfrac=1),
         'color':  dict(brightness=1, contrast=1, lumaflip=1, hue=1, saturation=1),
