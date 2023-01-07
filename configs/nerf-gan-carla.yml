@@ -3,15 +3,16 @@ generator:
   num_layers: 4
   perturb: 1.0
   raw_noise_std: 1.0
-  n_samples: 32
-  n_importance: 32
+  n_samples: 64
+  n_importance: 0
   white_bkgd: true
   patch_size: 64
   phi_low: -90
   phi_high: 0
   theta_low: -180
   theta_high: 180
-  render_size: 2.2
+  render_size: 2.0
+  shift: -0.3
 
   fmm:
     enabled: true
