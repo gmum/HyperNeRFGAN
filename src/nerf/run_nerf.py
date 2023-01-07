@@ -15,7 +15,7 @@ from nerf.load_llff import load_llff_data
 from nerf.load_deepvoxels import load_dv_data
 from nerf.load_blender import load_blender_data
 from nerf.load_LINEMOD import load_LINEMOD_data
-
+from torch_utils.misc import make_indexing_channels
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 np.random.seed(0)
@@ -76,6 +76,7 @@ def render(H,
            use_viewdirs=False,
            c2w_staticcam=None,
            patch_size=None,
+           index_channel=False,
            **kwargs):
     """Render rays
     Args:
@@ -109,6 +110,9 @@ def render(H,
             crop_w = torch.randint(0, W - patch_size, size=(1,))
             rays_o = rays_o[crop_w:crop_w + patch_size, crop_h:crop_h + patch_size]
             rays_d = rays_d[crop_w:crop_w + patch_size, crop_h:crop_h + patch_size]
+
+            if index_channel:
+                index_channels = make_indexing_channels(H, channel_first=False, low=0)[crop_w:crop_w + patch_size, crop_h:crop_h + patch_size]
     else:
         # use provided ray batch
         rays_o, rays_d = rays
@@ -141,6 +145,10 @@ def render(H,
     for k in all_ret:
         k_sh = list(sh[:-1]) + list(all_ret[k].shape[1:])
         all_ret[k] = torch.reshape(all_ret[k], k_sh)
+
+    if patch_size is not None and index_channel:
+        device = all_ret['rgb_map'].device
+        all_ret['rgb_map'] = torch.cat([all_ret['rgb_map'], index_channels.to(device=device)], dim=-1)
 
     k_extract = ['rgb_map', 'disp_map', 'acc_map']
     ret_list = [all_ret[k] for k in k_extract]
