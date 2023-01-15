@@ -9,6 +9,7 @@ dependencies:
   - pytorch=1.7.1
   - torchvision=0.8.2
   - imageio
+  - imageio-ffmpeg
   - protobuf=3.20.1
   - pip:
     - hydra-core==1.0.6
