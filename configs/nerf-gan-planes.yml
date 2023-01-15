@@ -1,0 +1,29 @@
+generator:
+  width: 128
+  num_layers: 4
+  perturb: 1.0
+  raw_noise_std: 1.0
+  n_samples: 64
+  n_importance: 0
+  white_bkgd: true
+  patch_size: 64
+  phi_low: -90
+  phi_high: 0
+  theta_low: -180
+  theta_high: 180
+  render_size: 2.0
+  shift: -0.3
+
+  fmm:
+    enabled: true
+    rank: 10
+    activation: demod
+
+loss_kwargs:
+  r1_gamma: 1.0
+  pl_weight: 0
+  style_mixing_prob: 0.0
+
+discriminator:
+  fmaps: 1
+
