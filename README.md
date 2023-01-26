@@ -1,4 +1,6 @@
-## HyperNerfGan
+## HyperNeRFGAN: Hypernetwok approached to 3D NeRF GAN
+
+![CARLA](assets/carla.gif) ![ShapeNet](assets/shapenet.gif)
 
 This repo contains HyperNerfGan implementation built on top of the [INR-GAN](https://github.com/universome/inr-gan) repo.
 Compared to a traditional generator, ours is [INR](https://vsitzmann.github.io/siren/)-based, i.e. it produces parameters for a fully-connected neural network which implicitly represents a 3D object.
@@ -25,16 +27,11 @@ See [StyleGAN2-ADA](https://github.com/NVlabs/stylegan2-ada-pytorch) repo for ad
 This training command will create an experiment inside `experiments/` directory and will copy the project files into it.
 This is needed to isolate the code which produces the model.
 
-### Pretrained checkpoints
-`INR-GAN` checkpoints:
-- [CARLA 128x128](...) with FID = .
-
-
 ### Data format
 We use the same data format as the original [StyleGAN2-ADA](https://github.com/NVlabs/stylegan2-ada-pytorch) repo: it is a zip of images.
 It is assumed that all data is located in a single directory, specified in `configs/main.yml`.
 
-For completeness, we also provide downloadable links to the datasets:
+We also provide downloadable links to some datasets:
 - CARLA: The original source is [https://s3.eu-central-1.amazonaws.com/avg-projects/graf/data/carla.zip ](https://s3.eu-central-1.amazonaws.com/avg-projects/graf/data/carla.zip).
 
 Download the datasets and put them into `data/` directory.
