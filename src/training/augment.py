@@ -434,10 +434,6 @@ class AugmentPipe(torch.nn.Module):
 
         if self.crop and not pre_cropped:
             assert height == width
-            # index_channels = make_indexing_channels(height).view(1, -1, height, width)
-            # index_channels = index_channels.expand(batch_size, -1, -1, -1)
-            # images = torch.cat([images, index_channels.to(device=images.device)], dim=-3)
-            # num_channels += 2
 
             crop_h = torch.randint(0, height - img_resolution, size=(batch_size,)).view(batch_size, 1, 1, 1)
             h_idx = torch.arange(0, width).view(1,1,1,-1).expand(batch_size, num_channels, width, -1)
