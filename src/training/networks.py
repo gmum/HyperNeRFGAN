@@ -688,6 +688,7 @@ class NerfSynthesisNetwork(torch.nn.Module):
         self.W = self.cfg.width
         self.height = img_resolution
         self.width = img_resolution
+        self.use_importance = True
 
         embed_fn, input_ch = get_embedder(multires=10, i=0)
         self.embed_fn = embed_fn
@@ -755,6 +756,7 @@ class NerfSynthesisNetwork(torch.nn.Module):
         }
         self.index_channel = False
         self.first_pass = True  # Hack for fixing high memory usage during first pass
+        self.cur_tick = 999
 
     def forward(self,
                 ws: torch.Tensor,
@@ -779,6 +781,22 @@ class NerfSynthesisNetwork(torch.nn.Module):
         if self.first_pass:
             self.render_kwargs['N_samples'] = 2
             self.render_kwargs['N_importance'] = 0
+        near = 4.0 - 1.0 / 2
+        far = 4.0 + 1.0 / 2
+        if self.cur_tick >= 50 and self.cur_tick < 60:
+            render_delta = self.cfg.render_size / 2 - 0.5
+            near -= (self.cur_tick - 50) / 10 * render_delta
+            far +=(self.cur_tick - 50) / 10 * render_delta
+        if self.cur_tick > 60:
+            near = 4.0 - self.cfg.render_size / 2 + self.cfg.shift
+            far = 4.0 + self.cfg.render_size / 2 + self.cfg.shift
+        near = 4.0 - self.cfg.render_size / 2 + self.cfg.shift
+        far = 4.0 + self.cfg.render_size / 2 + self.cfg.shift
+
+        if self.use_importance:
+            self.render_kwargs['N_importance'] = self.cfg.n_importance
+        else:
+            self.render_kwargs['N_importance'] = 0
 
         if crop and self.cfg.patch_size is not None:
             self.render_kwargs['patch_size'] = self.cfg.patch_size
@@ -797,8 +815,8 @@ class NerfSynthesisNetwork(torch.nn.Module):
             rgb, _, _, _ = render(self.height,
                                   self.width,
                                   self.K,
-                                  near=4.0 - self.cfg.render_size / 2,
-                                  far=4.0 +  self.cfg.render_size / 2,
+                                  near=near,
+                                  far=far,
                                   c2w=c2w[:3, :4],
                                   network_fn=self.forward_rays,
                                   index_channel=self.index_channel,

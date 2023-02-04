@@ -27,17 +27,17 @@ train_args:
   outdir: ${project_release_dir}
   data: ${dataset.target_path}
   gpus: ${num_gpus}
-  metrics: "fid1k_full" #,kid1k_full,is1k,fid5k_full,kid1k_full,is1k"
+  metrics: "fid1k_full" #,is1k,fid5k_full,kid1k_full,is1k,is1k,fid5k_full,kid1k_full"
   cfg: nerf
   generate_video: True
-  video_front_view: True
-  snap: 50
+  video_front_view: False
+  snap: 100
 
   aug: fixed
   augpipe: crop
   p: 0.5
   mirror: 1
-  hydra_cfg_name: "nerf-gan-celeba.yml"
+  hydra_cfg_name: "nerf-gan-cars.yml"
 
 train_args_str:
   _target_: src.infra.utils.cfg_to_args_str

@@ -49,7 +49,7 @@ class StyleGAN2Loss(Loss):
 
     def run_D(self, img, c, sync, pre_cropped=False):
         if self.augment_pipe is not None:
-            img = self.augment_pipe(img, img_resolution=self.D.img_resolution, pre_cropped=pre_cropped)
+            img = self.augment_pipe(img, pre_cropped=pre_cropped)
         with misc.ddp_sync(self.D, sync):
             logits = self.D(img, c)
         return logits
@@ -81,7 +81,7 @@ class StyleGAN2Loss(Loss):
                 pl_noise = torch.randn_like(gen_img) / np.sqrt(gen_img.shape[2] * gen_img.shape[3])
                 with torch.autograd.profiler.record_function('pl_grads'), conv2d_gradfix.no_weight_gradients():
                     pl_grads = torch.autograd.grad(outputs=[(gen_img * pl_noise).sum()], inputs=[gen_ws], create_graph=True, only_inputs=True)[0]
-                pl_lengths = pl_grads.square().sum(2).mean(1).sqrt()
+                pl_lengths = pl_grads.square().sum(1).sqrt()
                 pl_mean = self.pl_mean.lerp(pl_lengths.mean(), self.pl_decay)
                 self.pl_mean.copy_(pl_mean.detach())
                 pl_penalty = (pl_lengths - pl_mean).square()

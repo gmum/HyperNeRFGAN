@@ -11,8 +11,8 @@ generator:
   phi_high: 0
   theta_low: -180
   theta_high: 180
-  render_size: 2.0
-  shift: -0.3
+  render_size: 3.0
+  shift: 0.0
 
   fmm:
     enabled: true
@@ -20,7 +20,7 @@ generator:
     activation: demod
 
 loss_kwargs:
-  r1_gamma: 0.1
+  r1_gamma: 10.0
   pl_weight: 0
   style_mixing_prob: 0.0
 

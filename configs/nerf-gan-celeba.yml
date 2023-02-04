@@ -6,12 +6,12 @@ generator:
   n_samples: 32
   n_importance: 0
   white_bkgd: true
-  patch_size: 32
+  patch_size: 64
   phi_low: -2
   phi_high: 2
   use_normal: true
   theta_std: 5
-  render_size: 1.0
+  render_size: 2.0
   shift: 0.0
 
   fmm:
@@ -20,7 +20,7 @@ generator:
     activation: demod
 
 loss_kwargs:
-  r1_gamma: 0.1
+  r1_gamma: 10.0
   pl_weight: 0
   style_mixing_prob: 0.0
 

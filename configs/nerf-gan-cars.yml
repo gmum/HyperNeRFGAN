@@ -20,7 +20,7 @@ generator:
     activation: demod
 
 loss_kwargs:
-  r1_gamma: 1.0
+  r1_gamma: 10.0
   pl_weight: 0
   style_mixing_prob: 0.0
 

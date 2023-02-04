@@ -1,4 +1,4 @@
-## HyperNeRFGAN: Hypernetwok approached to 3D NeRF GAN
+## HyperNeRFGAN: Hypernetwork approach to 3D NeRF GAN
 
 ![CARLA](assets/carla.gif) ![ShapeNet](assets/shapenet.gif)
 

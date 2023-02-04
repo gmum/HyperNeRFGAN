@@ -182,9 +182,8 @@ class AugmentPipe(torch.nn.Module):
         # Should the image be cropped?
         self.crop = crop
 
-    def forward(self, images, debug_percentile=None, img_resolution=None, pre_cropped=False):
+    def forward(self, images, debug_percentile=None, pre_cropped=False):
         assert isinstance(images, torch.Tensor) and images.ndim == 4
-        assert not self.crop or img_resolution is not None
 
         batch_size, num_channels, height, width = images.shape
         device = images.device
@@ -435,6 +434,7 @@ class AugmentPipe(torch.nn.Module):
         if self.crop and not pre_cropped:
             assert height == width
 
+            img_resolution = int(height / 2)
             crop_h = torch.randint(0, height - img_resolution, size=(batch_size,)).view(batch_size, 1, 1, 1)
             h_idx = torch.arange(0, width).view(1,1,1,-1).expand(batch_size, num_channels, width, -1)
             crop_h_mask = torch.logical_and(h_idx >= crop_h, h_idx < crop_h + img_resolution)

@@ -276,6 +276,12 @@ def training_loop(
             all_gen_c = torch.from_numpy(np.stack(all_gen_c)).pin_memory().to(device)
             all_gen_c = [phase_gen_c.split(batch_gpu) for phase_gen_c in all_gen_c.split(batch_size)]
 
+        G.synthesis.cur_tick = cur_tick
+        if cur_tick > 25:
+            G.synthesis.use_importance = True
+        else:
+            G.synthesis.use_importance = False
+
         # Execute training phases.
         for phase, phase_gen_z, phase_gen_c in zip(phases, all_gen_z, all_gen_c):
             if batch_idx % phase.interval != 0:
