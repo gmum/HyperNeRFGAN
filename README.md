@@ -27,6 +27,8 @@ See [StyleGAN2-ADA](https://github.com/NVlabs/stylegan2-ada-pytorch) repo for ad
 This training command will create an experiment inside `experiments/` directory and will copy the project files into it.
 This is needed to isolate the code which produces the model.
 
+Before training on a given `<dataset>`, modify `configs/main.yml` so that "hydra_cfg_name" points to an apprioriate configuration file. Configuration files for different datasets are located in `configs` folder and follow this naming scheme: `nerf-gan-<dataset>.yml`.
+
 ### Data format
 We use the same data format as the original [StyleGAN2-ADA](https://github.com/NVlabs/stylegan2-ada-pytorch) repo: it is a zip of images.
 It is assumed that all data is located in a single directory, specified in `configs/main.yml`.
@@ -41,5 +43,12 @@ This repo is built on top of [INR-GAN](https://github.com/universome/inr-gan) re
 
 ### Bibtex
 ```
-...
+@misc{kania2023hypernerfgan,
+      title={HyperNeRFGAN: Hypernetwork approach to 3D NeRF GAN}, 
+      author={Adam Kania and Artur Kasymov and Maciej Zięba and Przemysław Spurek},
+      year={2023},
+      eprint={2301.11631},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
+}
 ```
