@@ -1,9 +1,9 @@
-## HyperNeRFGAN: Hypernetwok approached to 3D NeRF GAN
+## HyperNeRFGAN: Hypernetwok approach to 3D NeRF GAN
 
 ![CARLA](assets/carla.gif) ![ShapeNet](assets/shapenet.gif)
 
-This repo contains HyperNerfGan implementation built on top of the [INR-GAN](https://github.com/universome/inr-gan) repo.
-Compared to a traditional generator, ours is [INR](https://vsitzmann.github.io/siren/)-based, i.e. it produces parameters for a fully-connected neural network which implicitly represents a 3D object.
+This repo contains implementation of ["HyperNeRFGAN: Hypernetwok approach to 3D NeRF GAN"](https://arxiv.org/abs/2301.11631). It's built on top of [INR-GAN](https://github.com/universome/inr-gan).
+The main idea behind HyperNeRFGAN is that the generator network is [INR](https://vsitzmann.github.io/siren/)-based, i.e. it produces parameters for a fully-connected neural network which implicitly represents a 3D object.
 
 <div style="text-align:center">
 <img src="assets/NerfGAN.png" alt="NerfGAN illustration" width="500"/>
@@ -28,6 +28,19 @@ This training command will create an experiment inside `experiments/` directory 
 This is needed to isolate the code which produces the model.
 
 Before training on a given `<dataset>`, modify `configs/main.yml` so that "hydra_cfg_name" points to an apprioriate configuration file. Configuration files for different datasets are located in `configs` folder and follow this naming scheme: `nerf-gan-<dataset>.yml`.
+
+### Pretrained models
+Models pretrained on the CARLA dataset and ShapeNet dataset (cars, planes, chairs) can be found [here](https://ujchmura-my.sharepoint.com/:f:/g/personal/przemyslaw_spurek_uj_edu_pl/Eq2ERdmsa99FocBQaKFP8UMByy_eFbqZyWz4_71waM51EQ?e=IOJ5Yg). To generate images using a pretrained model use this code:
+```
+with pickle_path.open('rb') as f:
+  content = pickle.load(f)
+
+G = content['G_ema'].eval()
+
+torch.manual_seed(0)
+z = torch.randn(batch_size, 128)
+imgs = G(z=z, c=None, scale=False, crop=False, perturb=False)
+```
 
 ### Data format
 We use the same data format as the original [StyleGAN2-ADA](https://github.com/NVlabs/stylegan2-ada-pytorch) repo: it is a zip of images.
