@@ -30,17 +30,13 @@ This is needed to isolate the code which produces the model.
 Before training on a given `<dataset>`, modify `configs/main.yml` so that "hydra_cfg_name" points to an apprioriate configuration file. Configuration files for different datasets are located in `configs` folder and follow this naming scheme: `nerf-gan-<dataset>.yml`.
 
 ### Pretrained models
-Models pretrained on the CARLA dataset and ShapeNet dataset (cars, planes, chairs) can be found [here](https://ujchmura-my.sharepoint.com/:f:/g/personal/przemyslaw_spurek_uj_edu_pl/Eq2ERdmsa99FocBQaKFP8UMByy_eFbqZyWz4_71waM51EQ?e=IOJ5Yg). To generate images using a pretrained model use this code:
+Models pretrained on the CARLA dataset and ShapeNet dataset (cars, planes, chairs) can be found [here](https://ujchmura-my.sharepoint.com/:f:/g/personal/przemyslaw_spurek_uj_edu_pl/Eq2ERdmsa99FocBQaKFP8UMByy_eFbqZyWz4_71waM51EQ?e=IOJ5Yg). Use `examples_from_pickle.py` to generate images using a pretrained model:
 ```
-with pickle_path.open('rb') as f:
-  content = pickle.load(f)
-
-G = content['G_ema'].eval()
-
-torch.manual_seed(0)
-z = torch.randn(batch_size, 128)
-imgs = G(z=z, c=None, scale=False, crop=False, perturb=False)
+cd src
+python examples_from_pickle.py
 ```
+This script will load a pickle from `data/pickles` and save image and interpolation samples in folder `samples`. 
+By default, the code loads a model trained on CARLA.
 
 ### Data format
 We use the same data format as the original [StyleGAN2-ADA](https://github.com/NVlabs/stylegan2-ada-pytorch) repo: it is a zip of images.
