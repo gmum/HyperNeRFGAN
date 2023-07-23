@@ -42,8 +42,11 @@ By default, the code loads a model trained on CARLA.
 We use the same data format as the original [StyleGAN2-ADA](https://github.com/NVlabs/stylegan2-ada-pytorch) repo: it is a zip of images.
 It is assumed that all data is located in a single directory, specified in `configs/main.yml`.
 
-We also provide downloadable links to some datasets:
-- CARLA: The original source is [https://s3.eu-central-1.amazonaws.com/avg-projects/graf/data/carla.zip ](https://s3.eu-central-1.amazonaws.com/avg-projects/graf/data/carla.zip).
+We also provide downloadable links to datasets:
+- CARLA (rescaled): [https://ujchmura-my.sharepoint.com/:u:/g/personal/przemyslaw_spurek_uj_edu_pl/ETLL6rymGWlErix5HEkiNsUB4YHzLbX4aM5Die52vvlefA?e=29aOCM](https://ujchmura-my.sharepoint.com/:u:/g/personal/przemyslaw_spurek_uj_edu_pl/ETLL6rymGWlErix5HEkiNsUB4YHzLbX4aM5Die52vvlefA?e=29aOCM)
+- ShapeNet Cars: [https://ujchmura-my.sharepoint.com/:u:/g/personal/przemyslaw_spurek_uj_edu_pl/EQsJBo43ihBBmMiRnjQGJ1UB3D-BVvioCFXBzl7E5BtPdQ?e=L8lQIp](https://ujchmura-my.sharepoint.com/:u:/g/personal/przemyslaw_spurek_uj_edu_pl/EQsJBo43ihBBmMiRnjQGJ1UB3D-BVvioCFXBzl7E5BtPdQ?e=L8lQIp)
+- ShapeNet Planes: [https://ujchmura-my.sharepoint.com/:u:/g/personal/przemyslaw_spurek_uj_edu_pl/ESvo9ADxX3JFvICAyDB-m_IBhN3R6tA4rJSCtUbyISXl7A?e=fKjwHR](https://ujchmura-my.sharepoint.com/:u:/g/personal/przemyslaw_spurek_uj_edu_pl/ESvo9ADxX3JFvICAyDB-m_IBhN3R6tA4rJSCtUbyISXl7A?e=fKjwHR)
+- ShapeNet Chairs: [https://ujchmura-my.sharepoint.com/:u:/g/personal/przemyslaw_spurek_uj_edu_pl/EVEQs74umWtBjRlvuKzJAuwBIDwKxtMLSggFJEF4wL-1zA?e=WYwc6k](https://ujchmura-my.sharepoint.com/:u:/g/personal/przemyslaw_spurek_uj_edu_pl/EVEQs74umWtBjRlvuKzJAuwBIDwKxtMLSggFJEF4wL-1zA?e=WYwc6k)
 
 Download the datasets and put them into `data/` directory.
 
