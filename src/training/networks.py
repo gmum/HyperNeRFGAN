@@ -698,18 +698,18 @@ class NerfSynthesisNetwork(torch.nn.Module):
 
         self.pts_linears = nn.ModuleList(
             [NerfSynthesisLayer(in_channels=self.input_ch,
-                                out_channels=self.width,
+                                out_channels=self.W,
                                 w_dim=self.w_dim,
                                 activation='relu',
                                 cfg=cfg)] + [
-            NerfSynthesisLayer(in_channels=self.width,
-                               out_channels=self.width,
+            NerfSynthesisLayer(in_channels=self.W,
+                               out_channels=self.W,
                                w_dim=self.w_dim,
                                activation='relu',
                                cfg=cfg)
             if i not in self.skips else
-            NerfSynthesisLayer(in_channels=self.width + self.input_ch,
-                               out_channels=self.width,
+            NerfSynthesisLayer(in_channels=self.W + self.input_ch,
+                               out_channels=self.W,
                                w_dim=self.w_dim,
                                activation='relu',
                                cfg=cfg)
@@ -724,11 +724,11 @@ class NerfSynthesisNetwork(torch.nn.Module):
             # self.views_linears = nn.ModuleList(
             #     [nn.Linear(input_ch_views + W, W//2)] + [nn.Linear(W//2, W//2) for i in range(D//2)])
 
-            self.feature_linear = nn.Linear(self.width, self.width)
-            self.alpha_linear = nn.Linear(self.width, 1)
-            self.rgb_linear = nn.Linear(self.width // 2, 3)
+            # self.feature_linear = nn.Linear(self.width, self.width)
+            # self.alpha_linear = nn.Linear(self.width, 1)
+            # self.rgb_linear = nn.Linear(self.width // 2, 3)
         else:
-            self.output_linear = NerfSynthesisLayer(in_channels=self.width,
+            self.output_linear = NerfSynthesisLayer(in_channels=self.W,
                                                     out_channels=4,
                                                     w_dim=self.w_dim,
                                                     activation='linear',
